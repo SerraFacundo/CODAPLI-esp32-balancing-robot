@@ -1,0 +1,61 @@
+# ============================================
+# Arduino IDE
+# ============================================
+
+# Archivos compilados y temporales
+build/
+*.hex
+*.bin
+*.elf
+*.map
+
+# Cache de compilación de Arduino IDE 2.x
+.arduino15/
+cache/
+
+# ============================================
+# Sistema Operativo
+# ============================================
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+.fuse_hidden*
+.Trash-*
+
+# ============================================
+# Editores
+# ============================================
+
+# VS Code (por si lo usas para editar texto)
+.vscode/
+*.code-workspace
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# JetBrains / CLion
+.idea/
+*.iml
+# Vim / Neovim
+*.swp
+*.swo
+
+# ============================================
+# Logs y temporales generales
+# ============================================
+*.log
+tmp/
+temp/
