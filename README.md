@@ -2,19 +2,6 @@
 
 > Réplica del proyecto [ESP32 Balancing Robot Shield de PCBWay](https://www.pcbway.com/project/shareproject/ESP32_Balancing_Robot_Shield.html), adaptado y documentado para contexto académico en el marco del proyecto final para la materia de Tecnologias para la Automatización y de la mano con el laboratorio CODAPLI.
 
-## Tabla de Contenidos
-
-- [Descripción](#-descripción)
-- [Hardware](#-hardware)
-- [Arquitectura del Firmware](#-arquitectura-del-firmware)
-- [Dependencias](#-dependencias)
-- [Instalación y Carga](#-instalación-y-carga)
-- [Uso](#-uso)
-- [Configuración y Calibración](#-configuración-y-calibración)
-- [Interfaz Web](#-interfaz-web)
-- [Referencias](#-referencias)
-- [Licencia](#-licencia)
-
 ## Descripción
 
 Robot balanceador de dos ruedas basado en ESP32. Utiliza un sensor IMU MPU-6050 para estimar el ángulo de inclinación y un sistema de control en cascada (PID) para mantener el equilibrio mediante dos motores paso a paso NEMA17.
