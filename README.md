@@ -176,8 +176,6 @@ La interfaz está completamente embebida en el firmware (no requiere servidor ex
 | `B`                       | Buzzer                           |
 | `W`                       | Código morse "UTN"               |
 
----
-
 ## Referencias
 
 - [Proyecto original — PCBWay](https://www.pcbway.com/project/shareproject/ESP32_Balancing_Robot_Shield.html)
