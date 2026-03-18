@@ -95,7 +95,7 @@ En el Gestor de Placas de Arduino IDE, instalar: [ESP32 by Espressif Systems](ht
 1. Clonar el repositorio:
 
    ```bash
-   git clone https://github.com/tu-usuario/esp32-balancing-robot.git
+   git clone https://github.com/La-patrulla-AG/CODAPLI-esp32-balancing-robot.git
    ```
 
 2. Abrir `firmware/src/esp32_balancing_robot.ino` en Arduino IDE.
