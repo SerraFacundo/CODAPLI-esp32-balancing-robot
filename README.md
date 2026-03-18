@@ -125,8 +125,6 @@ En el Gestor de Placas de Arduino IDE, instalar: [ESP32 by Espressif Systems](ht
 
 5. Controlar con el joystick táctil (móvil) o gamepad USB (escritorio).
 
----
-
 ## Configuración y Calibración
 
 Los parámetros principales se configuran en `defines.h`:
@@ -186,8 +184,6 @@ La interfaz está completamente embebida en el firmware (no requiere servidor ex
 - [Video de ensamblaje](https://www.youtube.com/watch?v=tZynIj1StpM)
 - [MPU-6000/6050 Register Map](https://invensense.tdk.com/wp-content/uploads/2015/02/MPU-6000-Register-Map1.pdf) _(referencia del driver IMU)_
 - [ESP32 Arduino Core](https://github.com/espressif/arduino-esp32)
-
----
 
 ## Licencia
 
