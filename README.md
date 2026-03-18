@@ -48,7 +48,7 @@ El robot se controla en tiempo real a través de una interfaz web embebida, acce
 
 El firmware implementa un **sistema de control en cascada** corriendo a 100Hz:
 
-![Schematic](docs/firmware/pid-diag.png)
+<img src="docs/firmware/pid-diag.png" alt="Schematic" width="50%">
 
 ### Módulos principales
 
@@ -150,8 +150,6 @@ Los parámetros principales se configuran en `defines.h`:
 Desde la interfaz web, el botón **CALIB** captura el ángulo actual como referencia de equilibrio. El robot debe estar vertical y quieto en ese momento.
 
 Los parámetros PID también se pueden ajustar en tiempo real con los sliders de la sección **PID TUNING** de la interfaz web.
-
----
 
 ## Interfaz Web
 
