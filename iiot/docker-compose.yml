@@ -1,0 +1,57 @@
+# Plataforma IIoT local: Node-RED (ingesta) -> InfluxDB (histórico) -> Grafana (dashboard)
+# Uso:  cp .env.example .env   (editar contraseñas)   y luego   docker compose up -d
+services:
+  influxdb:
+    image: influxdb:2.7
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUX_USER}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUX_ORG}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_BUCKET}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+
+  node-red:
+    image: nodered/node-red:4.0
+    restart: unless-stopped
+    ports:
+      - "1880:1880"
+    environment:
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_ORG: ${INFLUX_ORG}
+      INFLUX_BUCKET: ${INFLUX_BUCKET}
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      ROBOT_WS_URL: ${ROBOT_WS_URL}
+    volumes:
+      - node-red-data:/data
+      - ./node-red:/data/proyecto
+    depends_on:
+      - influxdb
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      INFLUX_ORG: ${INFLUX_ORG}
+      INFLUX_BUCKET: ${INFLUX_BUCKET}
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - influxdb
+
+volumes:
+  influxdb-data:
+  node-red-data:
+  grafana-data:

@@ -59,3 +59,18 @@ $RECYCLE.BIN/
 *.log
 tmp/
 temp/
+
+# ============================================
+# Proyecto Industria 4.0
+# ============================================
+
+# Secretos (claves del AP, token del WebSocket, credenciales del backend)
+src/secrets.h
+.env
+
+# Python (gemelo digital)
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ipynb_checkpoints/
