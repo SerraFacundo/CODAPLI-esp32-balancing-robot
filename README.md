@@ -102,28 +102,30 @@ En el Gestor de Placas de Arduino IDE, instalar: [ESP32 by Espressif Systems](ht
    git clone https://github.com/La-patrulla-AG/CODAPLI-esp32-balancing-robot.git
    ```
 
-2. Abrir `firmware/src/esp32_balancing_robot.ino` en Arduino IDE.
+2. Copiar `esp32_balancing_robot/secrets.example.h` como `esp32_balancing_robot/secrets.h` y completar la contraseña del AP, el token del WebSocket y (opcional) la red WiFi de la laptop. Sin este archivo, o con los valores de ejemplo, el firmware no compila.
 
-3. Seleccionar la placa: **Tools → Board → ESP32 Dev Module**
+3. Abrir `esp32_balancing_robot/esp32_balancing_robot.ino` en Arduino IDE.
 
-4. Configurar:
+4. Seleccionar la placa: **Tools → Board → ESP32 Dev Module**
+
+5. Configurar:
    - Upload Speed: `115200`
    - CPU Frequency: `240MHz`
    - Partition Scheme: `Default`
 
-5. Conectar el ESP32 por USB y cargar el firmware con el botón **Upload**.
+6. Conectar el ESP32 por USB y cargar el firmware con el botón **Upload**.
 
-6. Abrir el Monitor Serie a `115200 baud` para ver el proceso de calibración y la IP del AP.
+7. Abrir el Monitor Serie a `115200 baud` para ver el proceso de calibración, la IP del AP y, si se configuró la red de la laptop, la IP del robot en esa red.
 
 ## Uso
 
 1. Encender el robot. El ESP32 creará una red WiFi:
    - **SSID:** `BalanceBot`
-   - **Contraseña:** `12345678`
+   - **Contraseña:** la definida en `esp32_balancing_robot/secrets.h` (`SECRET_AP_PASSWORD`)
 
 2. Conectarse a esa red desde el celular o PC.
 
-3. Abrir el navegador en: **http://192.168.4.1**
+3. Abrir el navegador en: **http://192.168.4.1**. La página pide el token del robot (`SECRET_WS_TOKEN`) la primera vez y lo recuerda en ese navegador.
 
 4. Esperar que el robot complete la calibración recostado en el suelo (no moverlo durante ese proceso).
 

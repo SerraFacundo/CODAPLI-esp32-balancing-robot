@@ -27,6 +27,7 @@ services:
       INFLUX_BUCKET: ${INFLUX_BUCKET}
       INFLUX_TOKEN: ${INFLUX_TOKEN}
       ROBOT_WS_URL: ${ROBOT_WS_URL}
+      ROBOT_WS_TOKEN: ${ROBOT_WS_TOKEN}
     volumes:
       - node-red-data:/data
       - ./node-red:/data/proyecto

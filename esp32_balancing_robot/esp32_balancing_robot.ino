@@ -29,7 +29,10 @@
  * - ESP32 creates a WiFi Access Point (default: "BalanceBot")
  * - Serves a web interface at http://192.168.4.1
  * - WebSocket at ws://192.168.4.1/ws for real-time bidirectional control
- * - Telemetry sent to client at ~10Hz
+ * - Each WebSocket client must authenticate with "T:<token>" (secrets.h)
+ *   before commands are accepted or telemetry is sent
+ * - Optional STA mode: also joins the laptop's network (IIoT backend)
+ * - Telemetry sent to authenticated clients at ~10Hz
  * 
  * Hardware:
  * - ESP32 DevKit
@@ -53,12 +56,29 @@
 #include "defines.h"
 #include "globals.h"
 #include "WebInterface.h"
+#include "secrets_check.h"   // Incluye secrets.h y valida las claves al compilar
 
 // ============================================================================
 // WEB SERVER & WEBSOCKET
 // ============================================================================
 AsyncWebServer server(WEBSERVER_PORT);
 AsyncWebSocket ws("/ws");
+
+// ============================================================================
+// WEBSOCKET SESSIONS — autenticación por token
+// ============================================================================
+// Los eventos del WebSocket corren en la tarea de AsyncTCP y loop() en otra,
+// así que la tabla se protege con un spinlock. Dentro de la sección crítica
+// solo se copian datos; los envíos/cierres se hacen fuera.
+struct WsSession {
+  uint32_t id;            // 0 = slot libre (AsyncWebSocket numera desde 1)
+  bool     authed;
+  unsigned long connectedAt;
+};
+WsSession wsSessions[WS_MAX_CLIENTS];
+portMUX_TYPE wsMux = portMUX_INITIALIZER_UNLOCKED;
+unsigned long wsLastAuthFailMs = 0;
+bool wsAuthFailedOnce = false;
 
 // Telemetry timing
 unsigned long lastTelemetryMs = 0;
@@ -74,9 +94,11 @@ void initMPU6050();
 void onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
                       AwsEventType type, void *arg, uint8_t *data, size_t len);
 void processWebSocketMessage(uint8_t *data, size_t len);
+void handleAuthMessage(AsyncWebSocketClient *client, const char *msg);
+void closeStaleWsClients();
 void sendTelemetry();
 void processControl();
-void setupWiFiAP();
+void setupWiFi();
 void setupWebServer();
 void handleAutoRaiseup();
 
@@ -158,8 +180,8 @@ void setup() {
   Serial.println("Initializing MPU6050...");
   initMPU6050();
 
-  // --- WiFi Access Point ---
-  setupWiFiAP();
+  // --- WiFi: AP propio + (opcional) STA a la red de la laptop ---
+  setupWiFi();
 
   // --- Web Server & WebSocket ---
   setupWebServer();
@@ -199,8 +221,7 @@ void setup() {
   Serial.println("  Robot ready! Connect to WiFi:");
   Serial.print("    SSID: ");
   Serial.println(WIFI_AP_SSID);
-  Serial.print("    Pass: ");
-  Serial.println(WIFI_AP_PASSWORD);
+  Serial.println("    Pass: (definida en secrets.h)");
   Serial.println("    URL:  http://192.168.4.1");
   Serial.println("========================================");
 
@@ -456,6 +477,7 @@ void loop() {
   unsigned long now = millis();
   if (now - lastTelemetryMs >= TELEMETRY_INTERVAL_MS) {
     lastTelemetryMs = now;
+    closeStaleWsClients();
     sendTelemetry();
   }
 }
@@ -470,17 +492,39 @@ void initMPU6050() {
 }
 
 // ============================================================================
-// WIFI ACCESS POINT SETUP
+// WIFI SETUP — AP propio siempre; STA a la red de la laptop si está configurada
 // ============================================================================
-void setupWiFiAP() {
-  Serial.println("Setting up WiFi Access Point...");
+// En modo AP+STA el ESP32 tiene una sola radio: cuando la STA se conecta al
+// router, el AP se mueve al canal del router (los clientes del AP pueden
+// desconectarse un instante y reconectarse solos).
+void setupWiFi() {
+  const bool useSta = cstrLen(SECRET_STA_SSID) > 0;
 
-  WiFi.mode(WIFI_AP);
-  WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PASSWORD, WIFI_AP_CHANNEL);
+  Serial.println(useSta ? "Setting up WiFi (AP + STA)..." : "Setting up WiFi Access Point...");
+  WiFi.mode(useSta ? WIFI_AP_STA : WIFI_AP);
 
-  IPAddress myIP = WiFi.softAPIP();
+  if (!WiFi.softAP(WIFI_AP_SSID, SECRET_AP_PASSWORD, WIFI_AP_CHANNEL)) {
+    Serial.println("ERROR: no se pudo iniciar el AP (revisar SECRET_AP_PASSWORD)");
+  }
   Serial.print("AP IP address: ");
-  Serial.println(myIP);
+  Serial.println(WiFi.softAPIP());
+
+  if (useSta) {
+    WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+      if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) {
+        Serial.print("STA conectada. IP en la red de la laptop: ");
+        Serial.println(WiFi.localIP());
+        Serial.printf("  WebSocket: ws://%s/ws\n", WiFi.localIP().toString().c_str());
+      } else if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+        Serial.println("STA desconectada (reintentando...)");
+      }
+    });
+    WiFi.setHostname(WIFI_HOSTNAME);
+    WiFi.setAutoReconnect(true);
+    WiFi.setSleep(false);  // Sin modem-sleep: menor latencia en el WebSocket
+    WiFi.begin(SECRET_STA_SSID, SECRET_STA_PASSWORD);  // No bloquea: conecta en segundo plano
+    Serial.printf("STA: conectando a \"%s\"...\n", SECRET_STA_SSID);
+  }
 
   digitalWrite(PIN_WIFI_LED, HIGH);  // LED on = AP active
 }
@@ -513,19 +557,47 @@ void setupWebServer() {
 void onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
                       AwsEventType type, void *arg, uint8_t *data, size_t len) {
   switch (type) {
-    case WS_EVT_CONNECT:
-      Serial.printf("WebSocket client #%u connected from %s\n",
+    case WS_EVT_CONNECT: {
+      Serial.printf("WebSocket client #%u connected from %s (sin autenticar)\n",
                     client->id(), client->remoteIP().toString().c_str());
-      ws_connected = true;
+      bool slotFound = false;
+      portENTER_CRITICAL(&wsMux);
+      for (int i = 0; i < WS_MAX_CLIENTS; i++) {
+        if (wsSessions[i].id == 0) {
+          wsSessions[i] = {client->id(), false, millis()};
+          slotFound = true;
+          break;
+        }
+      }
+      portEXIT_CRITICAL(&wsMux);
+      if (!slotFound) {
+        Serial.println("  -> sin lugar para más clientes, se cierra");
+        client->close();
+      }
       break;
+    }
 
-    case WS_EVT_DISCONNECT:
+    case WS_EVT_DISCONNECT: {
       Serial.printf("WebSocket client #%u disconnected\n", client->id());
-      // Safety: stop the robot when client disconnects
-      ws_throttle = 0;
-      ws_steering = 0;
-      ws_connected = (ws.count() > 0);
+      bool wasAuthed = false, anyAuthed = false;
+      portENTER_CRITICAL(&wsMux);
+      for (int i = 0; i < WS_MAX_CLIENTS; i++) {
+        if (wsSessions[i].id == client->id()) {
+          wasAuthed = wsSessions[i].authed;
+          wsSessions[i] = {0, false, 0};
+        } else if (wsSessions[i].id != 0 && wsSessions[i].authed) {
+          anyAuthed = true;
+        }
+      }
+      portEXIT_CRITICAL(&wsMux);
+      // Safety: stop the robot when an authenticated (controlling) client disconnects
+      if (wasAuthed) {
+        ws_throttle = 0;
+        ws_steering = 0;
+      }
+      ws_connected = anyAuthed;
       break;
+    }
 
     case WS_EVT_DATA: {
       AwsFrameInfo *info = (AwsFrameInfo *)arg;
@@ -533,7 +605,21 @@ void onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
         // Complete message received
         if (info->opcode == WS_TEXT) {
           data[len] = 0;  // Null-terminate
-          processWebSocketMessage(data, len);
+          if (data[0] == 'T') {
+            handleAuthMessage(client, (const char *)data);
+            break;
+          }
+          bool authed = false;
+          portENTER_CRITICAL(&wsMux);
+          for (int i = 0; i < WS_MAX_CLIENTS; i++) {
+            if (wsSessions[i].id == client->id()) { authed = wsSessions[i].authed; break; }
+          }
+          portEXIT_CRITICAL(&wsMux);
+          if (authed) {
+            processWebSocketMessage(data, len);
+          } else {
+            client->text("T:REQ");  // Comando ignorado: primero hay que autenticarse
+          }
         }
       }
       break;
@@ -549,9 +635,73 @@ void onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
 }
 
 // ============================================================================
-// PROCESS INCOMING WEBSOCKET MESSAGES
+// WEBSOCKET AUTHENTICATION
+// ============================================================================
+// Comparación en tiempo constante (no corta en el primer carácter distinto),
+// para no filtrar por tiempos de respuesta cuántos caracteres coinciden.
+bool tokenMatches(const char *given) {
+  const char *expected = SECRET_WS_TOKEN;
+  const size_t expLen = cstrLen(SECRET_WS_TOKEN);
+  size_t givenLen = strlen(given);
+  uint8_t diff = (givenLen != expLen);
+  for (size_t i = 0; i < expLen; i++) {
+    char g = (i < givenLen) ? given[i] : 0;
+    diff |= (uint8_t)(g ^ expected[i]);
+  }
+  return diff == 0;
+}
+
+// Mensaje "T:<token>". Respuestas: "T:OK" (autenticado) o "T:ERR" (y se cierra).
+void handleAuthMessage(AsyncWebSocketClient *client, const char *msg) {
+  unsigned long now = millis();
+  bool cooldown = wsAuthFailedOnce && (now - wsLastAuthFailMs < WS_AUTH_FAIL_COOLDOWN_MS);
+  bool ok = !cooldown && strncmp(msg, "T:", 2) == 0 && tokenMatches(msg + 2);
+
+  if (ok) {
+    portENTER_CRITICAL(&wsMux);
+    for (int i = 0; i < WS_MAX_CLIENTS; i++) {
+      if (wsSessions[i].id == client->id()) { wsSessions[i].authed = true; break; }
+    }
+    portEXIT_CRITICAL(&wsMux);
+    ws_connected = true;
+    client->text("T:OK");
+    Serial.printf("WebSocket client #%u autenticado\n", client->id());
+  } else {
+    if (!cooldown) {
+      wsLastAuthFailMs = now;
+      wsAuthFailedOnce = true;
+    }
+    client->text("T:ERR");
+    client->close(WS_CLOSE_AUTH_FAILED, "auth");
+    Serial.printf("WebSocket client #%u: token inválido%s, se cierra\n",
+                  client->id(), cooldown ? " (en espera por intento fallido previo)" : "");
+  }
+}
+
+// Cierra los clientes que no se autenticaron a tiempo (llamado desde loop()).
+void closeStaleWsClients() {
+  uint32_t stale[WS_MAX_CLIENTS];
+  int n = 0;
+  unsigned long now = millis();
+  portENTER_CRITICAL(&wsMux);
+  for (int i = 0; i < WS_MAX_CLIENTS; i++) {
+    if (wsSessions[i].id != 0 && !wsSessions[i].authed &&
+        now - wsSessions[i].connectedAt > WS_AUTH_TIMEOUT_MS) {
+      stale[n++] = wsSessions[i].id;
+    }
+  }
+  portEXIT_CRITICAL(&wsMux);
+  for (int i = 0; i < n; i++) {
+    Serial.printf("WebSocket client #%u no se autenticó a tiempo, se cierra\n", stale[i]);
+    ws.close(stale[i], WS_CLOSE_AUTH_TIMEOUT, "timeout");
+  }
+}
+
+// ============================================================================
+// PROCESS INCOMING WEBSOCKET MESSAGES (solo de clientes autenticados)
 // ============================================================================
 // Protocol:
+//   T:<token>                 Autenticación (se maneja en handleAuthMessage)
 //   J:<throttle>:<steering>   Joystick (-1.0 to 1.0)
 //   M:<0|1>                   Mode
 //   P:<kp>:<kd>:<kpt>:<kit>   PID parameters
@@ -646,11 +796,18 @@ void processWebSocketMessage(uint8_t *data, size_t len) {
 }
 
 // ============================================================================
-// SEND TELEMETRY TO ALL CONNECTED WEBSOCKET CLIENTS
+// SEND TELEMETRY TO AUTHENTICATED WEBSOCKET CLIENTS
 // ============================================================================
 // Format: A:<angle>:<speed>:<motors_active>
 void sendTelemetry() {
-  if (ws.count() == 0) return;  // No clients connected
+  uint32_t ids[WS_MAX_CLIENTS];
+  int n = 0;
+  portENTER_CRITICAL(&wsMux);
+  for (int i = 0; i < WS_MAX_CLIENTS; i++) {
+    if (wsSessions[i].id != 0 && wsSessions[i].authed) ids[n++] = wsSessions[i].id;
+  }
+  portEXIT_CRITICAL(&wsMux);
+  if (n == 0) return;  // No authenticated clients
 
   char buf[64];
   snprintf(buf, sizeof(buf), "A:%.1f:%d:%d",
@@ -658,7 +815,7 @@ void sendTelemetry() {
            actual_robot_speed,
            motorsActive ? 1 : 0);
 
-  ws.textAll(buf);
+  for (int i = 0; i < n; i++) ws.text(ids[i], buf);
 }
 
 // ============================================================================

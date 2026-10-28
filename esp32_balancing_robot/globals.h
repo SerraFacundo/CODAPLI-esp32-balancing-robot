@@ -105,7 +105,7 @@ extern bool    ws_led_on;
 extern bool    ws_pro_mode;
 extern bool    ws_calibrate_request;
 extern bool    ws_new_pid;           // Flag: new PID values received
-extern bool    ws_connected;         // At least one WebSocket client connected
+extern bool    ws_connected;         // At least one authenticated WebSocket client
 
 // ============================================================================
 // AUTO RAISE-UP STATE

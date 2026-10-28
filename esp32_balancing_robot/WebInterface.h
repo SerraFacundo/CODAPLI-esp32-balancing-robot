@@ -243,15 +243,36 @@ body{
 // ============================================================================
 // WebSocket
 // ============================================================================
-let ws=null,wsConnected=false;
+// Autenticación: el robot solo acepta comandos después de recibir "T:<token>".
+// El token se pide antes de abrir la conexión (el robot cierra a los 5 s a quien
+// no se autentica) y se recuerda en este navegador.
+let ws=null,wsConnected=false,wsToken=null;
+const TOKEN_KEY='bbToken';
+function loadToken(){try{return localStorage.getItem(TOKEN_KEY)}catch(e){return null}}
+function saveToken(t){try{localStorage.setItem(TOKEN_KEY,t)}catch(e){}}
+function forgetToken(){wsToken=null;try{localStorage.removeItem(TOKEN_KEY)}catch(e){}}
+function setWsStatus(txt,cls){const el=document.getElementById('wsStatus');el.textContent=txt;el.className='badge '+cls}
 function connectWS(){
+  if(!wsToken)wsToken=loadToken();
+  if(!wsToken){
+    const t=prompt('Token del robot:');
+    if(!t){setWsStatus('SIN TOKEN','disconnected');return}  // click en el estado para reintentar
+    wsToken=t.trim();
+  }
   const host=window.location.hostname||'192.168.4.1';
+  setWsStatus('CONECTANDO','disconnected');
   ws=new WebSocket('ws://'+host+'/ws');
-  ws.onopen=function(){wsConnected=true;document.getElementById('wsStatus').textContent='ONLINE';document.getElementById('wsStatus').className='badge connected'};
-  ws.onclose=function(){wsConnected=false;document.getElementById('wsStatus').textContent='OFFLINE';document.getElementById('wsStatus').className='badge disconnected';setTimeout(connectWS,1500)};
+  ws.onopen=function(){ws.send('T:'+wsToken)};
+  ws.onclose=function(evt){
+    wsConnected=false;
+    if(evt.code===4001){forgetToken();setWsStatus('TOKEN INVALIDO','disconnected');setTimeout(connectWS,2500);return}
+    setWsStatus('OFFLINE','disconnected');setTimeout(connectWS,1500)
+  };
   ws.onerror=function(){ws.close()};
   ws.onmessage=function(evt){
     const d=evt.data;
+    if(d==='T:OK'){wsConnected=true;saveToken(wsToken);setWsStatus('ONLINE','connected');return}
+    if(d==='T:ERR'){forgetToken();return}
     if(d.startsWith('A:')){
       const p=d.substring(2).split(':');
       if(p.length>=3){
@@ -506,6 +527,8 @@ let gpPollInterval=setInterval(pollGamepad,33);
 // ============================================================================
 drawJoystick();
 updatePID();
+document.getElementById('wsStatus').style.cursor='pointer';
+document.getElementById('wsStatus').onclick=function(){if(this.textContent==='SIN TOKEN')connectWS()};
 connectWS();
 
 // Draw empty gamepad visual

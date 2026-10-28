@@ -1,7 +1,7 @@
 """Modelo dinámico del robot (péndulo invertido de dos ruedas).
 
 Esqueleto: los parámetros físicos son provisorios y hay que medirlos en el robot real.
-Las ganancias por defecto replican las de src/defines.h.
+Las ganancias por defecto replican las de esp32_balancing_robot/defines.h.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ class ParametrosFisicos:
 
 @dataclass
 class GananciasPID:
-    """Mismos nombres y valores por defecto que src/defines.h."""
+    """Mismos nombres y valores por defecto que esp32_balancing_robot/defines.h."""
 
     kp: float = 0.32  # KP — estabilidad (PD)
     kd: float = 0.050  # KD

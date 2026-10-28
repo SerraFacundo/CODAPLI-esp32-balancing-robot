@@ -65,7 +65,8 @@ temp/
 # ============================================
 
 # Secretos (claves del AP, token del WebSocket, credenciales del backend)
-src/secrets.h
+# (en cualquier carpeta; el firmware lo usa en esp32_balancing_robot/)
+secrets.h
 .env
 
 # Python (gemelo digital)

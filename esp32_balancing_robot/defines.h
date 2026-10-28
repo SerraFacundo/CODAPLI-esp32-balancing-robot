@@ -140,9 +140,22 @@
 // WIFI AP CONFIGURATION
 // ============================================================================
 #define WIFI_AP_SSID     "BalanceBot"
-#define WIFI_AP_PASSWORD "12345678"  // Minimum 8 characters for WPA2
-#define WIFI_AP_CHANNEL  1
+// La contraseña del AP ya no está acá: se define en secrets.h (SECRET_AP_PASSWORD),
+// que no se sube al repositorio. Ver secrets.example.h.
+#define WIFI_AP_CHANNEL  1          // En modo AP+STA el AP pasa al canal del router
+#define WIFI_HOSTNAME    "balancebot"
 #define WEBSERVER_PORT   80
+
+// ============================================================================
+// WEBSOCKET AUTHENTICATION
+// ============================================================================
+// Cada cliente debe enviar "T:<token>" (SECRET_WS_TOKEN de secrets.h) antes de
+// que se acepte cualquier comando o se le envíe telemetría.
+#define WS_MAX_CLIENTS         4      // Sesiones WebSocket simultáneas
+#define WS_AUTH_TIMEOUT_MS     5000   // Se cierra al cliente que no se autentica en este tiempo
+#define WS_AUTH_FAIL_COOLDOWN_MS 2000 // Tras un token inválido, se rechazan intentos durante este tiempo
+#define WS_CLOSE_AUTH_FAILED   4001   // Código de cierre WebSocket: token inválido
+#define WS_CLOSE_AUTH_TIMEOUT  4002   // Código de cierre WebSocket: no se autenticó a tiempo
 
 // ============================================================================
 // JOYSTICK SENSITIVITY
