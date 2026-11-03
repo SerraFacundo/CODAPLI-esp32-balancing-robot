@@ -10,7 +10,6 @@
  *   Left Stick X  -> Steering (left/right)
  *   A / Button 0  -> Buzzer
  *   B / Button 1  -> LED toggle
- *   X / Button 2  -> Servo toggle
  *   Y / Button 3  -> Mode toggle (Normal/Pro)
  *   Select / Btn 8 -> Calibrate
  *   D-pad U/D/L/R -> Digital throttle/steering
@@ -100,8 +99,6 @@ body{
 .btn-normal.active{background:#ffd93d;border-color:#b8860b;box-shadow:3px 3px 0px rgba(0,0,0,0.2),inset 0 0 10px rgba(255,255,255,0.5)}
 .btn-pro{background:#ff9ff3;color:#7a0052;border-color:#d63384}
 .btn-pro.active{background:#ff6bcb;border-color:#c2185b;box-shadow:3px 3px 0px rgba(0,0,0,0.2),inset 0 0 10px rgba(255,255,255,0.5)}
-.btn-servo{background:linear-gradient(180deg,#a8e6cf,#88d8b0);color:#1b5e20;border-color:#4caf50}
-.btn-servo.on{background:linear-gradient(180deg,#69f0ae,#00e676);border-color:#2e7d32}
 .btn-led{background:linear-gradient(180deg,#ffd3b6,#ffaaa5);color:#bf360c;border-color:#ff7043}
 .btn-led.on{background:linear-gradient(180deg,#ff9100,#ff6d00);color:#fff;border-color:#e65100}
 .btn-buzz{background:linear-gradient(180deg,#c5cae9,#9fa8da);color:#283593;border-color:#5c6bc0}
@@ -188,7 +185,6 @@ body{
       <span class="toggle-label" id="lblPro">PRO</span>
     </div>
     <div class="btn-row" style="margin-top:8px">
-      <button class="rbtn btn-servo" id="btnServo" onclick="toggleServo()">SERVO</button>
       <button class="rbtn btn-led" id="btnLed" onclick="toggleLed()">LED</button>
       <button class="rbtn btn-buzz" onclick="buzzer()">BUZZ</button>
       <button class="rbtn" onclick="morseUTN()" style="background:linear-gradient(180deg,#fff9c4,#fff176);color:#f57f17;border-color:#fbc02d;font-size:8px">UTN</button>
@@ -226,7 +222,6 @@ body{
         <div class="gp-map-item"><span class="gk">D-Pad</span><span class="gv">Digital Move</span></div>
         <div class="gp-map-item"><span class="gk">A (Btn 0)</span><span class="gv">Buzzer</span></div>
         <div class="gp-map-item"><span class="gk">B (Btn 1)</span><span class="gv">LED</span></div>
-        <div class="gp-map-item"><span class="gk">X (Btn 2)</span><span class="gv">Servo</span></div>
         <div class="gp-map-item"><span class="gk">Y (Btn 3)</span><span class="gv">Mode</span></div>
         <div class="gp-map-item"><span class="gk">Select (8)</span><span class="gv">Calibrate</span></div>
       </div>
@@ -322,9 +317,8 @@ document.addEventListener('mouseup',function(){if(isDrag)jRelease()});
 // ============================================================================
 // Mode / Buttons
 // ============================================================================
-let servoOn=false,ledOn=false,curMode=0;
+let ledOn=false,curMode=0;
 function setMode(m){curMode=m;send('M:'+m);document.getElementById('btnNormal').className='rbtn btn-normal'+(m===0?' active':'');document.getElementById('btnPro').className='rbtn btn-pro'+(m===1?' active':'');document.getElementById('lblNormal').style.color=m===0?'#333':'#999';document.getElementById('lblPro').style.color=m===1?'#333':'#999'}
-function toggleServo(){servoOn=!servoOn;send('S:'+(servoOn?'1':'0'));document.getElementById('btnServo').className='rbtn btn-servo'+(servoOn?' on':'')}
 function toggleLed(){ledOn=!ledOn;send('L:'+(ledOn?'1':'0'));document.getElementById('btnLed').className='rbtn btn-led'+(ledOn?' on':'')}
 function buzzer(){send('B')}
 function morseUTN(){send('W')}
@@ -401,8 +395,6 @@ function pollGamepad(){
   if(gp.buttons[0]&&gp.buttons[0].pressed&&!btnCooldown[0]){buzzer();setBtnCooldown(0)}
   // Btn 1 (B) = LED toggle
   if(gp.buttons[1]&&gp.buttons[1].pressed&&!btnCooldown[1]){toggleLed();setBtnCooldown(1)}
-  // Btn 2 (X) = Servo toggle
-  if(gp.buttons[2]&&gp.buttons[2].pressed&&!btnCooldown[2]){toggleServo();setBtnCooldown(2)}
   // Btn 3 (Y) = Mode toggle
   if(gp.buttons[3]&&gp.buttons[3].pressed&&!btnCooldown[3]){setMode(curMode===0?1:0);setBtnCooldown(3)}
   // Btn 8 (Select) = Calibrate

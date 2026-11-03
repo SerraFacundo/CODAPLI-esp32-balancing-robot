@@ -32,7 +32,7 @@ uint8_t swap;
 // MPU6050_getAngle — Complementary filter for angle estimation
 // ============================================================================
 // Called at ~100Hz. Returns the estimated tilt angle in degrees.
-// Positive angle = tilting forward (toward servo/head side)
+// Positive angle = tilting forward (toward head side)
 // Negative angle = tilting backward
 float MPU6050_getAngle(float dt) {
   // Calculate angle from accelerometer using atan2(y_accel, z_accel)

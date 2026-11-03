@@ -1,0 +1,187 @@
+[
+  {
+    "id": "tab_robot",
+    "type": "tab",
+    "label": "Robot → InfluxDB",
+    "disabled": false,
+    "info": "Recibe la telemetría del robot por WebSocket (con token), la convierte a line protocol y la guarda en InfluxDB.\n\nVariables de entorno (iiot/.env): ROBOT_WS_URL, ROBOT_WS_TOKEN, INFLUX_URL, INFLUX_ORG, INFLUX_BUCKET, INFLUX_TOKEN."
+  },
+  {
+    "id": "ws_robot",
+    "type": "websocket-client",
+    "path": "${ROBOT_WS_URL}",
+    "tls": "",
+    "wholemsg": "false",
+    "hb": "0",
+    "subprotocol": "",
+    "headers": []
+  },
+  {
+    "id": "ws_in",
+    "type": "websocket in",
+    "z": "tab_robot",
+    "name": "Robot",
+    "server": "",
+    "client": "ws_robot",
+    "x": 110,
+    "y": 120,
+    "wires": [
+      [
+        "parse"
+      ]
+    ]
+  },
+  {
+    "id": "st_ws",
+    "type": "status",
+    "z": "tab_robot",
+    "name": "Conexión",
+    "scope": [
+      "ws_in"
+    ],
+    "x": 120,
+    "y": 60,
+    "wires": [
+      [
+        "auth"
+      ]
+    ]
+  },
+  {
+    "id": "auth",
+    "type": "function",
+    "z": "tab_robot",
+    "name": "Enviar token al conectar",
+    "func": "// El websocket-in avisa por su estado cuando se abre la conexión con el robot.\n// Apenas se conecta hay que mandar el token (el robot cierra a los 5 s si no).\nconst s = msg.status || {};\nconst conectado = s.event === 'connect' ||\n    (s.fill === 'green' && String(s.text || '').includes('connected'));\nif (!conectado) return null;\nconst token = env.get('ROBOT_WS_TOKEN');\nif (!token) {\n    node.status({fill: 'red', shape: 'ring', text: 'falta ROBOT_WS_TOKEN'});\n    return null;\n}\nflow.set('autenticado', false);\nnode.status({fill: 'yellow', shape: 'dot', text: 'enviando token'});\nreturn {payload: 'T:' + token};\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 330,
+    "y": 60,
+    "wires": [
+      [
+        "ws_out"
+      ]
+    ]
+  },
+  {
+    "id": "ws_out",
+    "type": "websocket out",
+    "z": "tab_robot",
+    "name": "Robot",
+    "server": "",
+    "client": "ws_robot",
+    "x": 550,
+    "y": 60,
+    "wires": []
+  },
+  {
+    "id": "parse",
+    "type": "function",
+    "z": "tab_robot",
+    "name": "Parsear → line protocol",
+    "func": "// Convierte cada mensaje del robot en una línea de InfluxDB (line protocol).\n// Protocolo: docs/ind40/protocolo-websocket.md\nconst ROBOT = 'balancebot';\nconst txt = String(msg.payload || '').trim();\nconst p = txt.split(':');\nconst ts = Date.now();  // marca de tiempo de recepción (ms)\nconst int = (v) => Number.isFinite(Number(v)) ? Math.trunc(Number(v)) + 'i' : null;\nconst num = (v) => Number.isFinite(Number(v)) ? String(Number(v)) : null;\n\nfunction linea(medida, campos) {\n    const f = Object.entries(campos).filter(([, v]) => v !== null)\n        .map(([k, v]) => k + '=' + v).join(',');\n    return f ? `${medida},robot=${ROBOT} ${f} ${ts}` : null;\n}\n\nswitch (p[0]) {\n    case 'T':\n        if (p[1] === 'OK') {\n            flow.set('autenticado', true);\n            node.status({fill: 'green', shape: 'dot', text: 'autenticado'});\n        } else if (p[1] === 'ERR') {\n            flow.set('autenticado', false);\n            node.status({fill: 'red', shape: 'ring', text: 'token inválido'});\n        }\n        return null;\n    case 'A':   // A:<angulo>:<velocidad>:<motores>\n        if (p.length !== 4) return null;\n        msg.payload = linea('telemetria', {\n            angulo: num(p[1]), velocidad: int(p[2]), motores: int(p[3])});\n        break;\n    case 'E': { // E:<uptime_s>:<caidas>:<de_pie_s>:<bateria_mV>:<rssi>:<heap>:<clientes>\n        if (p.length !== 8) return null;\n        const bat = Number(p[4]);\n        const rssi = Number(p[5]);\n        msg.payload = linea('estado', {\n            uptime_s: int(p[1]), caidas: int(p[2]), de_pie_s: int(p[3]),\n            bateria_mv: bat >= 0 ? int(bat) : null,   // -1 = sin medición\n            rssi_dbm: rssi !== 0 ? int(rssi) : null,  // 0 = STA no conectada\n            heap_libre: int(p[6]), clientes: int(p[7])});\n        node.status({fill: 'green', shape: 'dot',\n            text: `uptime ${p[1]} s · caídas ${p[2]}`});\n        break;\n    }\n    case 'F':   // F:<numero>:<angulo>:<tramo_ms>\n        if (p.length !== 4) return null;\n        msg.payload = linea('caida', {\n            numero: int(p[1]), angulo: num(p[2]), tramo_ms: int(p[3])});\n        break;\n    default:\n        return null;\n}\nreturn msg.payload ? msg : null;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 330,
+    "y": 120,
+    "wires": [
+      [
+        "buffer"
+      ]
+    ]
+  },
+  {
+    "id": "tick",
+    "type": "inject",
+    "z": "tab_robot",
+    "name": "cada 1 s",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "1",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "1",
+    "topic": "flush",
+    "x": 340,
+    "y": 180,
+    "wires": [
+      [
+        "buffer"
+      ]
+    ]
+  },
+  {
+    "id": "buffer",
+    "type": "function",
+    "z": "tab_robot",
+    "name": "Lote para InfluxDB",
+    "func": "// Junta las líneas y las escribe en InfluxDB de a lotes (cada 1 s o 500 líneas),\n// en vez de una petición HTTP por cada mensaje de 10 Hz.\nlet buf = context.get('buf') || [];\nif (msg.topic !== 'flush') {\n    buf.push(msg.payload);\n    context.set('buf', buf);\n    if (buf.length < 500) return null;\n}\nif (buf.length === 0) return null;\ncontext.set('buf', []);\nconst url = env.get('INFLUX_URL') || 'http://influxdb:8086';\nreturn {\n    method: 'POST',\n    url: `${url}/api/v2/write?org=${encodeURIComponent(env.get('INFLUX_ORG'))}` +\n         `&bucket=${encodeURIComponent(env.get('INFLUX_BUCKET'))}&precision=ms`,\n    headers: {\n        'Authorization': 'Token ' + env.get('INFLUX_TOKEN'),\n        'Content-Type': 'text/plain; charset=utf-8'\n    },\n    payload: buf.join('\\n'),\n    lineas: buf.length\n};\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 560,
+    "y": 140,
+    "wires": [
+      [
+        "http"
+      ]
+    ]
+  },
+  {
+    "id": "http",
+    "type": "http request",
+    "z": "tab_robot",
+    "name": "POST /api/v2/write",
+    "method": "use",
+    "ret": "txt",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 780,
+    "y": 140,
+    "wires": [
+      [
+        "result"
+      ]
+    ]
+  },
+  {
+    "id": "result",
+    "type": "function",
+    "z": "tab_robot",
+    "name": "Resultado",
+    "func": "// InfluxDB responde 204 si la escritura salió bien.\nif (msg.statusCode === 204) {\n    node.status({fill: 'green', shape: 'dot',\n        text: `${msg.lineas} líneas · ${new Date().toLocaleTimeString()}`});\n    return null;\n}\nnode.status({fill: 'red', shape: 'ring', text: `error ${msg.statusCode || ''}`});\nnode.warn(`InfluxDB respondió ${msg.statusCode}: ${typeof msg.payload === 'string' ? msg.payload : JSON.stringify(msg.payload)}`);\nreturn null;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 960,
+    "y": 140,
+    "wires": [
+      []
+    ]
+  }
+]

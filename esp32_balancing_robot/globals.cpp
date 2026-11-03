@@ -98,20 +98,11 @@ uint8_t mode = 0;  // 0 = Normal, 1 = Pro
 // ============================================================================
 float   ws_throttle          = 0.0f;
 float   ws_steering          = 0.0f;
-bool    ws_servo_on          = false;
 bool    ws_led_on            = false;
 bool    ws_pro_mode          = false;
 bool    ws_calibrate_request = false;
 bool    ws_new_pid           = false;
 bool    ws_connected         = false;
-
-// ============================================================================
-// AUTO RAISE-UP STATE
-// ============================================================================
-bool    autoRaiseup_done     = !AUTO_RAISEUP_ENABLED;  // If disabled, mark as done
-bool    autoRaiseup_active   = false;
-uint8_t autoRaiseup_attempts = 0;
-unsigned long autoRaiseup_timer = 0;
 
 // ============================================================================
 // TELEMETRY
