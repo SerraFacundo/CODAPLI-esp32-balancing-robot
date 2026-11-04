@@ -19,7 +19,7 @@ docs/, figs/           Documentación y figuras del proyecto original
 | # | Objetivo específico | Dónde |
 |---|---|---|
 | 1 | Modelo dinámico del robot y gemelo digital | `gemelo-digital/gemelo/modelo.py` |
-| 2 | Sincronizar el gemelo con la telemetría real | `gemelo-digital/gemelo/telemetria.py` |
+| 2 | Sincronizar el gemelo con la telemetría real — visor 3D en vivo listo (`/gemelo` en Node-RED), falta probar con el robot | `gemelo-digital/gemelo/telemetria.py`, `gemelo-digital/visor/` |
 | 3 | Banco de pruebas de ganancias PID en el gemelo | `gemelo-digital/` |
 | 4 | Recolección e histórico de telemetría — firmware (`E:`, `F:`) y flujo Node-RED listos, falta probar con el robot | `iiot/node-red/flows.json` |
 | 5 | Dashboard de KPIs (uptime, caídas, MTBF, batería) | `iiot/grafana/` |

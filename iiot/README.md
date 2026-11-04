@@ -20,6 +20,7 @@ docker compose up -d
 | Node-RED | http://localhost:1880 |
 | InfluxDB | http://localhost:8086 |
 | Grafana  | http://localhost:3000 |
+| Gemelo 3D | http://localhost:1880/gemelo |
 
 La laptop tiene que estar en la misma red que el robot (conectada al AP `BalanceBot`, o el
 robot en modo AP+STA conectado a la red de la laptop).
@@ -32,5 +33,6 @@ batería, señal WiFi, ángulo, velocidad, caídas por minuto, últimas caídas 
 
 - Las consultas usan el bucket `robot`; si cambiás `INFLUX_BUCKET` en `.env`, hay que cambiarlo
   también en el JSON.
+- El enlace **Gemelo 3D** (arriba a la derecha) abre el visor 3D del robot ([`gemelo-digital/visor`](../gemelo-digital/visor/README.md)).
 - Al ser un dashboard provisionado, los cambios hechos en la interfaz no se pueden guardar encima:
   usá *Save as* o editá el JSON.

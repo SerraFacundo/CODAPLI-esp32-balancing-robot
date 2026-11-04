@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "visor-mock",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["gemelo-digital/visor/mock-relay.mjs", "18800"],
+      "port": 18800
+    }
+  ]
+}

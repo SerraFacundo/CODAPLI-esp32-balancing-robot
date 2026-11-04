@@ -18,6 +18,7 @@ pytest
 
 - `gemelo/telemetria.py` — parseo de los mensajes del robot (`A:<ang>:<vel>:<mot>`).
 - `gemelo/modelo.py` — parámetros físicos y dinámica del robot (en desarrollo).
+- `visor/` — visor 3D en el navegador: el robot se inclina con la telemetría en vivo ([README](visor/README.md)).
 
 ## Próximos pasos
 

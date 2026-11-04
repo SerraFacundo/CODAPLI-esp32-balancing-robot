@@ -12,6 +12,9 @@ Lo que se cambie en el editor se guarda acá mismo, así que queda versionado en
 4. **Lote para InfluxDB**: junta las líneas y las escribe cada 1 s con un POST a
    `/api/v2/write` (no hace falta instalar nodos extra de InfluxDB).
 5. **Resultado**: muestra en el estado del nodo cuántas líneas se escribieron, o el error.
+6. **Solo A: para el gemelo** reenvía los mensajes `A:` a `ws://<laptop>:1880/ws/gemelo`, sin token
+   y en un solo sentido, y **GET /gemelo** sirve `gemelo.html` (el visor 3D, generado por
+   [`gemelo-digital/visor`](../../gemelo-digital/visor/README.md)).
 
 Probado contra un robot y un InfluxDB simulados: autenticación, las tres mediciones, y
 reconexión con nuevo envío del token cuando el robot se reinicia.

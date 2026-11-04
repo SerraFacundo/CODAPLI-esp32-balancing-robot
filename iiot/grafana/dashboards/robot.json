@@ -23,6 +23,20 @@
       "5m"
     ]
   },
+  "links": [
+    {
+      "title": "Gemelo 3D",
+      "type": "link",
+      "url": "http://localhost:1880/gemelo",
+      "tooltip": "Robot en 3D con la telemetría en vivo (Node-RED)",
+      "icon": "external link",
+      "targetBlank": true,
+      "tags": [],
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": false
+    }
+  ],
   "panels": [
     {
       "type": "stat",

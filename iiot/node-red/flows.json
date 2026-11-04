@@ -4,7 +4,7 @@
     "type": "tab",
     "label": "Robot → InfluxDB",
     "disabled": false,
-    "info": "Recibe la telemetría del robot por WebSocket (con token), la convierte a line protocol y la guarda en InfluxDB.\n\nVariables de entorno (iiot/.env): ROBOT_WS_URL, ROBOT_WS_TOKEN, INFLUX_URL, INFLUX_ORG, INFLUX_BUCKET, INFLUX_TOKEN."
+    "info": "Recibe la telemetría del robot por WebSocket (con token), la convierte a line protocol y la guarda en InfluxDB.\n\nVariables de entorno (iiot/.env): ROBOT_WS_URL, ROBOT_WS_TOKEN, INFLUX_URL, INFLUX_ORG, INFLUX_BUCKET, INFLUX_TOKEN.\n\nGemelo 3D: reenvía los mensajes A: a /ws/gemelo (solo lectura, sin token) y sirve la página en /gemelo."
   },
   {
     "id": "ws_robot",
@@ -27,7 +27,8 @@
     "y": 120,
     "wires": [
       [
-        "parse"
+        "parse",
+        "solo_a"
       ]
     ]
   },
@@ -183,5 +184,92 @@
     "wires": [
       []
     ]
+  },
+  {
+    "id": "ws_gemelo",
+    "type": "websocket-listener",
+    "path": "/ws/gemelo",
+    "wholemsg": "false"
+  },
+  {
+    "id": "solo_a",
+    "type": "function",
+    "z": "tab_robot",
+    "name": "Solo A: para el gemelo",
+    "func": "// Reenvía solo la telemetría rápida. Sin _session, para que llegue a todos los visores conectados.\nif (typeof msg.payload === \"string\" && msg.payload.startsWith(\"A:\")) return { payload: msg.payload };\nreturn null;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 340,
+    "y": 240,
+    "wires": [
+      [
+        "ws_gemelo_out"
+      ]
+    ]
+  },
+  {
+    "id": "ws_gemelo_out",
+    "type": "websocket out",
+    "z": "tab_robot",
+    "name": "/ws/gemelo",
+    "server": "ws_gemelo",
+    "client": "",
+    "x": 560,
+    "y": 240,
+    "wires": []
+  },
+  {
+    "id": "http_gemelo",
+    "type": "http in",
+    "z": "tab_robot",
+    "name": "GET /gemelo",
+    "url": "/gemelo",
+    "method": "get",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 120,
+    "y": 300,
+    "wires": [
+      [
+        "file_gemelo"
+      ]
+    ]
+  },
+  {
+    "id": "file_gemelo",
+    "type": "file in",
+    "z": "tab_robot",
+    "name": "gemelo.html",
+    "filename": "/data/proyecto/gemelo.html",
+    "filenameType": "str",
+    "format": "utf8",
+    "chunk": false,
+    "sendError": false,
+    "encoding": "utf8",
+    "allProps": false,
+    "x": 330,
+    "y": 300,
+    "wires": [
+      [
+        "res_gemelo"
+      ]
+    ]
+  },
+  {
+    "id": "res_gemelo",
+    "type": "http response",
+    "z": "tab_robot",
+    "name": "Página",
+    "statusCode": "",
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "x": 520,
+    "y": 300,
+    "wires": []
   }
 ]

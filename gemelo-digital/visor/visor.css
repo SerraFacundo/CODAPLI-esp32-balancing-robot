@@ -1,0 +1,2 @@
+.gm-stage{outline:none;border-radius:8px}
+.gm-stage:focus-visible{outline:1px solid var(--anatomy-muted);outline-offset:6px}
