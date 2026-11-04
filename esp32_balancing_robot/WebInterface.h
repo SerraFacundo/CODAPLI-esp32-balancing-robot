@@ -26,7 +26,8 @@ const char WEB_PAGE[] PROGMEM = R"rawliteral(
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,maximum-scale=1">
 <title>Balancin TEC CODAPLY</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+/* Sin fuentes de Google: conectado al AP del robot no hay internet y el @import
+   dejaba la página cargando. Si la fuente está instalada se usa; si no, monospace. */
 *{margin:0;padding:0;box-sizing:border-box;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 
 body{
@@ -64,12 +65,12 @@ body{
 .win-dots{display:flex;gap:5px}
 .win-dot{width:12px;height:12px;border-radius:50%;border:1.5px solid rgba(0,0,0,0.2)}
 .dot-r{background:#ff6b6b}.dot-y{background:#ffd93d}.dot-g{background:#6bcb77}
-.win-label{font-family:'Press Start 2P',cursive;font-size:9px;color:#fff;text-shadow:1px 1px 2px rgba(0,0,0,0.3);flex:1;text-align:center;letter-spacing:1px}
+.win-label{font-family:'Press Start 2P',monospace;font-size:9px;color:#fff;text-shadow:1px 1px 2px rgba(0,0,0,0.3);flex:1;text-align:center;letter-spacing:1px}
 .win-body{padding:10px}
 
 /* === STATUS === */
 .status-bar{display:flex;justify-content:space-between;align-items:center;padding:0 4px 6px;flex-wrap:wrap;gap:4px}
-.badge{font-family:'Press Start 2P',cursive;font-size:8px;padding:5px 12px;border-radius:20px;border:2px solid;letter-spacing:0.5px}
+.badge{font-family:'Press Start 2P',monospace;font-size:8px;padding:5px 12px;border-radius:20px;border:2px solid;letter-spacing:0.5px}
 .connected{background:#d4ffda;color:#1b8a2e;border-color:#6bcb77}
 .disconnected{background:#ffd4d4;color:#c0392b;border-color:#ff6b6b}
 .gp-badge{background:#e8eaf6;color:#283593;border-color:#7986cb}
@@ -81,7 +82,7 @@ body{
 .tel-card.a-c{background:linear-gradient(180deg,#e3f2fd,#bbdefb);border-color:#64b5f6}
 .tel-card.s-c{background:linear-gradient(180deg,#fff3e0,#ffe0b2);border-color:#ffb74d}
 .tel-card.m-c{background:linear-gradient(180deg,#fce4ec,#f8bbd0);border-color:#f06292}
-.tel-lbl{font-family:'Press Start 2P',cursive;font-size:7px;color:#666;letter-spacing:1px;margin-bottom:4px}
+.tel-lbl{font-family:'Press Start 2P',monospace;font-size:7px;color:#666;letter-spacing:1px;margin-bottom:4px}
 .tel-val{font-family:'VT323',monospace;font-size:28px;font-weight:700;color:#333;line-height:1}
 .tel-unit{font-size:14px;color:#888}
 .motor-indicator{display:inline-block;width:10px;height:10px;border-radius:50%;margin-left:4px;vertical-align:middle}
@@ -93,7 +94,7 @@ body{
 
 /* === BUTTONS === */
 .btn-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:4px 0}
-.rbtn{font-family:'Press Start 2P',cursive;font-size:9px;padding:10px 14px;border-radius:10px;cursor:pointer;transition:all .1s;letter-spacing:0.5px;min-width:65px;text-align:center;border:2.5px solid;box-shadow:3px 3px 0px rgba(0,0,0,0.15);position:relative;top:0}
+.rbtn{font-family:'Press Start 2P',monospace;font-size:9px;padding:10px 14px;border-radius:10px;cursor:pointer;transition:all .1s;letter-spacing:0.5px;min-width:65px;text-align:center;border:2.5px solid;box-shadow:3px 3px 0px rgba(0,0,0,0.15);position:relative;top:0}
 .rbtn:active{box-shadow:1px 1px 0px rgba(0,0,0,0.15);top:2px}
 .btn-normal{background:#ffe66d;color:#6b5900;border-color:#d4a800}
 .btn-normal.active{background:#ffd93d;border-color:#b8860b;box-shadow:3px 3px 0px rgba(0,0,0,0.2),inset 0 0 10px rgba(255,255,255,0.5)}
@@ -104,11 +105,11 @@ body{
 .btn-buzz{background:linear-gradient(180deg,#c5cae9,#9fa8da);color:#283593;border-color:#5c6bc0}
 .btn-cal{background:linear-gradient(180deg,#80d8ff,#40c4ff);color:#01579b;border-color:#0288d1}
 .toggle-row{display:flex;align-items:center;justify-content:center;gap:10px;padding:4px 0}
-.toggle-label{font-family:'Press Start 2P',cursive;font-size:9px;color:#999}
+.toggle-label{font-family:'Press Start 2P',monospace;font-size:9px;color:#999}
 
 /* === PID === */
 .pid-row{display:flex;align-items:center;margin:10px 0;gap:6px}
-.pid-label{font-family:'Press Start 2P',cursive;font-size:8px;width:38px;text-align:right;color:#7c4dff;flex-shrink:0}
+.pid-label{font-family:'Press Start 2P',monospace;font-size:8px;width:38px;text-align:right;color:#7c4dff;flex-shrink:0}
 .pid-row input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:14px;background:linear-gradient(90deg,#80d8ff,#b388ff,#ff80ab);border-radius:7px;outline:none;border:2px solid #b388ff;touch-action:manipulation;margin:0;padding:0}
 .pid-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:28px;height:28px;background:linear-gradient(135deg,#ffe66d,#ffd93d);border:2.5px solid #d4a800;border-radius:50%;cursor:pointer;box-shadow:2px 2px 0px rgba(0,0,0,0.15);margin-top:-7px}
 .pid-row input[type=range]::-webkit-slider-runnable-track{height:14px;background:linear-gradient(90deg,#80d8ff,#b388ff,#ff80ab);border-radius:7px}
@@ -124,7 +125,7 @@ body{
 .gp-map-item .gv{color:#888}
 
 /* === FOOTER === */
-.footer{text-align:center;padding:12px;padding-bottom:40px;font-family:'Press Start 2P',cursive;font-size:7px;color:#b388ff;letter-spacing:1px}
+.footer{text-align:center;padding:12px;padding-bottom:40px;font-family:'Press Start 2P',monospace;font-size:7px;color:#b388ff;letter-spacing:1px}
 
 /* === RESPONSIVE === */
 @media(max-width:767px){
@@ -151,7 +152,7 @@ body{
   </div>
   <div class="win-body">
     <div class="status-bar">
-      <span style="font-family:'Press Start 2P',cursive;font-size:8px;color:#888">STATUS:</span>
+      <span style="font-family:'Press Start 2P',monospace;font-size:8px;color:#888">STATUS:</span>
       <span id="wsStatus" class="badge disconnected">OFFLINE</span>
       <span id="gpStatus" class="badge gp-badge">GAMEPAD: --</span>
     </div>
@@ -215,7 +216,7 @@ body{
     <div class="gp-info" id="gpName">Connect a USB gamepad...</div>
     <canvas id="gpCanvas" width="360" height="240"></canvas>
     <div style="margin-top:8px">
-      <div class="gp-info" style="font-size:13px;color:#7c4dff;font-family:'Press Start 2P',cursive;font-size:8px;margin-bottom:6px">BUTTON MAP</div>
+      <div class="gp-info" style="font-size:13px;color:#7c4dff;font-family:'Press Start 2P',monospace;font-size:8px;margin-bottom:6px">BUTTON MAP</div>
       <div class="gp-map-grid">
         <div class="gp-map-item"><span class="gk">L-Stick Y</span><span class="gv">Throttle</span></div>
         <div class="gp-map-item"><span class="gk">L-Stick X</span><span class="gv">Steering</span></div>
@@ -502,7 +503,7 @@ function drawGamepadVisual(gp){
   gpCtx.fillStyle=staP?'#fff':'#888';gpCtx.fillText('STA',W/2+28,80);
 
   // Axes readout text
-  gpCtx.fillStyle='#7c4dff';gpCtx.font='14px VT323';gpCtx.textAlign='center';
+  gpCtx.fillStyle='#7c4dff';gpCtx.font='14px VT323, monospace';gpCtx.textAlign='center';
   gpCtx.fillText('THR: '+gpThrottle.toFixed(2)+'  STR: '+gpSteer.toFixed(2),W/2,H-16);
 }
 
@@ -525,7 +526,7 @@ connectWS();
 
 // Draw empty gamepad visual
 if(gpCtx){
-  gpCtx.fillStyle='#ccc';gpCtx.font='16px VT323';gpCtx.textAlign='center';
+  gpCtx.fillStyle='#ccc';gpCtx.font='16px VT323, monospace';gpCtx.textAlign='center';
   gpCtx.fillText('Press any button on your gamepad',gpC.width/2,gpC.height/2);
 }
 </script>

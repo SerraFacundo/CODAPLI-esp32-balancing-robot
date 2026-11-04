@@ -23,3 +23,14 @@ docker compose up -d
 
 La laptop tiene que estar en la misma red que el robot (conectada al AP `BalanceBot`, o el
 robot en modo AP+STA conectado a la red de la laptop).
+
+## Dashboard de Grafana
+
+Se carga solo al arrancar Grafana: **Dashboards → Robot Balanceador → Robot Balanceador — Monitoreo**
+(`grafana/dashboards/robot.json`). Muestra tiempo encendido, caídas, tiempo de pie, MTBF,
+batería, señal WiFi, ángulo, velocidad, caídas por minuto, últimas caídas y memoria libre.
+
+- Las consultas usan el bucket `robot`; si cambiás `INFLUX_BUCKET` en `.env`, hay que cambiarlo
+  también en el JSON.
+- Al ser un dashboard provisionado, los cambios hechos en la interfaz no se pueden guardar encima:
+  usá *Save as* o editá el JSON.
