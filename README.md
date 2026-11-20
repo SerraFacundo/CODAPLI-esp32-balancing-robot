@@ -2,15 +2,26 @@
 
 > Réplica del proyecto [ESP32 Balancing Robot Shield de PCBWay](https://www.pcbway.com/project/shareproject/ESP32_Balancing_Robot_Shield.html), adaptado y documentado para contexto académico en el marco del proyecto final para la materia de Tecnologias para la Automatización y de la mano con el laboratorio CODAPLI.
 
-> **Industria 4.0 (UTN FRLP, 2026):** este fork extiende el robot con un gemelo digital,
-> una plataforma IIoT local (Node-RED + InfluxDB + Grafana) y autenticación del WebSocket.
-> Ver [docs/ind40/README.md](docs/ind40/README.md).
+> **Industria 4.0 (UTN FRLP, 2026):** el robot se extendió con autenticación del WebSocket,
+> telemetría hacia una plataforma IIoT local (Node-RED + InfluxDB + Grafana) y un gemelo digital
+> con visor 3D en vivo. Ver [docs/ind40/README.md](docs/ind40/README.md).
 
 ## Descripción
 
 Robot balanceador de dos ruedas basado en ESP32. Utiliza un sensor IMU MPU-6050 para estimar el ángulo de inclinación y un sistema de control en cascada (PID) para mantener el equilibrio mediante dos motores paso a paso NEMA17.
 
 El robot se controla en tiempo real a través de una interfaz web embebida, accesible por WiFi desde cualquier navegador, sin necesidad de instalar aplicaciones. Soporta control táctil (joystick virtual), control mediante gamepad USB y ajuste de parámetros PID en tiempo real.
+
+## Estructura del repositorio
+
+| Carpeta                       | Contenido                                                                  |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| `esp32_balancing_robot/`      | Firmware del robot (sketch de Arduino IDE)                                 |
+| `iiot/`                       | Plataforma IIoT local: Node-RED + InfluxDB + Grafana con `docker compose`  |
+| `gemelo-digital/`             | Gemelo digital: parser de telemetría, modelo (en desarrollo) y visor 3D    |
+| `herramientas/diagnostico/`   | Sketch aparte para probar MPU-6050, motores, LEDs, buzzer y WiFi           |
+| `docs/ind40/`                 | Hoja de ruta, decisiones y protocolo WebSocket del trabajo de Industria 4.0 |
+| `docs/`, `figs/`              | Documentación, diagramas y modelos 3D del proyecto original                |
 
 ## Hardware
 
@@ -56,7 +67,7 @@ El firmware implementa un **sistema de control en cascada** corriendo a 100Hz:
 
 | Archivo                     | Descripción                                                       |
 | --------------------------- | ----------------------------------------------------------------- |
-| `esp32_balancing_robot.ino` | Setup, loop principal, WebSocket, WiFi AP                         |
+| `esp32_balancing_robot.ino` | Setup, loop principal, WiFi AP/AP+STA, WebSocket con autenticación y telemetría |
 | `Control.cpp / .h`          | Controladores PD de estabilidad, PI de velocidad y PD de posición |
 | `MPU6050.cpp / .h`          | Driver IMU: lectura I2C, filtro complementario, calibración       |
 | `Motors.cpp / .h`           | Control de velocidad de motores con limitación de aceleración     |
@@ -64,6 +75,8 @@ El firmware implementa un **sistema de control en cascada** corriendo a 100Hz:
 | `WebInterface.h`            | Interfaz web embebida (HTML/CSS/JS en PROGMEM)                    |
 | `defines.h`                 | Pines, constantes, parámetros PID, macros de compatibilidad       |
 | `globals.h / .cpp`          | Variables globales compartidas entre módulos                      |
+| `secrets.example.h`         | Plantilla de `secrets.h` (contraseña del AP, token, red opcional) |
+| `secrets_check.h`           | Impide compilar si falta `secrets.h` o quedaron valores de ejemplo |
 
 ### Filtro complementario (IMU)
 
@@ -85,19 +98,19 @@ Instalar desde el **Gestor de Librerías** de Arduino IDE:
 
 | Librería            | Versión recomendada | Uso                      |
 | ------------------- | ------------------- | ------------------------ |
-| `AsyncTCP`          | ≥ 1.1.1             | TCP asíncrono para ESP32 |
-| `ESPAsyncWebServer` | ≥ 1.2.3             | Servidor web y WebSocket |
+| `Async TCP` (ESP32Async)          | Última           | TCP asíncrono para ESP32 |
+| `ESP Async WebServer` (ESP32Async) | Última           | Servidor web y WebSocket |
 
 La librería `Wire` (I2C) es parte del core de Arduino y no requiere instalación separada.
 
-En el Gestor de Placas de Arduino IDE, instalar: [ESP32 by Espressif Systems](https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json) (versión 2.x o 3.x, ambas soportadas)
+En el Gestor de Placas de Arduino IDE, instalar: [ESP32 by Espressif Systems](https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json) (probado con la versión 3.3.x)
 
 ## Instalación y Carga
 
 1. Clonar el repositorio:
 
    ```bash
-   git clone https://github.com/La-patrulla-AG/CODAPLI-esp32-balancing-robot.git
+   git clone https://github.com/SerraFacundo/CODAPLI-esp32-balancing-robot.git
    ```
 
 2. Copiar `esp32_balancing_robot/secrets.example.h` como `esp32_balancing_robot/secrets.h` y completar la contraseña del AP, el token del WebSocket y (opcional) la red WiFi de la laptop. Sin este archivo, o con los valores de ejemplo, el firmware no compila.
@@ -159,6 +172,7 @@ La interfaz está completamente embebida en el firmware (no requiere servidor ex
 
 **Funcionalidades:**
 
+- Pide el token del robot al conectarse y lo recuerda en el navegador
 - Joystick táctil para móvil
 - Soporte de gamepad USB (escritorio)
 - Telemetría en tiempo real: ángulo, velocidad, estado de motores
@@ -167,10 +181,13 @@ La interfaz está completamente embebida en el firmware (no requiere servidor ex
 - Modos Normal y Pro (diferentes límites de velocidad)
 - Calibración remota
 
-**Protocolo WebSocket:**
+**Protocolo WebSocket** (detalle completo en [docs/ind40/protocolo-websocket.md](docs/ind40/protocolo-websocket.md)):
+
+Cada conexión debe enviar primero `T:<token>`; sin autenticar, el robot no envía telemetría ni acepta comandos.
 
 | Mensaje                   | Descripción                      |
 | ------------------------- | -------------------------------- |
+| `T:<token>`               | Autenticación (`T:OK` / `T:ERR`) |
 | `J:<throttle>:<steering>` | Control de joystick (-1.0 a 1.0) |
 | `M:<0\|1>`                | Cambio de modo (Normal/Pro)      |
 | `P:<kp>:<kd>:<kpt>:<kit>` | Actualización de PID             |
@@ -178,6 +195,30 @@ La interfaz está completamente embebida en el firmware (no requiere servidor ex
 | `L:<0\|1>`                | Control de LED                   |
 | `B`                       | Buzzer                           |
 | `W`                       | Código morse "UTN"               |
+
+Del robot a los clientes autenticados: `A:<angulo>:<velocidad>:<motores>` (10 Hz),
+`E:<uptime_s>:<caidas>:<de_pie_s>:<bateria_mV>:<rssi_dBm>:<heap_libre>:<clientes>` (1 Hz)
+y `F:<numero>:<angulo>:<tramo_ms>` en cada caída.
+
+## Plataforma IIoT y gemelo digital
+
+En una laptop conectada a la red `BalanceBot` (o a la misma red que el robot en modo AP+STA):
+
+```bash
+cd iiot
+cp .env.example .env      # completar credenciales; ROBOT_WS_TOKEN = SECRET_WS_TOKEN de secrets.h
+docker compose up -d
+```
+
+| Servicio | URL                            | Uso                                                       |
+| -------- | ------------------------------ | --------------------------------------------------------- |
+| Grafana  | http://localhost:3000          | Dashboard *Robot Balanceador — Monitoreo* (caídas, MTBF…) |
+| Node-RED | http://localhost:1880          | Ingesta de la telemetría hacia InfluxDB                   |
+| Gemelo   | http://localhost:1880/gemelo   | Visor 3D sincronizado con el robot                        |
+| InfluxDB | http://localhost:8086          | Histórico (bucket `robot`)                                |
+
+Más detalle en [iiot/README.md](iiot/README.md) y [gemelo-digital/visor/README.md](gemelo-digital/visor/README.md).
+Para revisar el hardware por Monitor Serie (115200 baud) está [herramientas/diagnostico](herramientas/diagnostico).
 
 ## Referencias
 

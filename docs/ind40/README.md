@@ -19,10 +19,10 @@ docs/, figs/           Documentación y figuras del proyecto original
 | # | Objetivo específico | Dónde |
 |---|---|---|
 | 1 | Modelo dinámico del robot y gemelo digital | `gemelo-digital/gemelo/modelo.py` |
-| 2 | Sincronizar el gemelo con la telemetría real — visor 3D en vivo listo (`/gemelo` en Node-RED), falta probar con el robot | `gemelo-digital/gemelo/telemetria.py`, `gemelo-digital/visor/` |
+| 2 | Sincronizar el gemelo con la telemetría real — visor 3D en vivo (`/gemelo` en Node-RED). Falta confirmar el signo del ángulo | `gemelo-digital/gemelo/telemetria.py`, `gemelo-digital/visor/` |
 | 3 | Banco de pruebas de ganancias PID en el gemelo | `gemelo-digital/` |
-| 4 | Recolección e histórico de telemetría — firmware (`E:`, `F:`) y flujo Node-RED listos, falta probar con el robot | `iiot/node-red/flows.json` |
-| 5 | Dashboard de KPIs (uptime, caídas, MTBF, batería) | `iiot/grafana/` |
+| 4 | Recolección e histórico de telemetría — funcionando con el robot real (12/11) | `iiot/node-red/flows.json` |
+| 5 | Dashboard de KPIs (uptime, caídas, MTBF, batería) — listo. Falta la batería: requiere divisor resistivo a GPIO 34 | `iiot/grafana/` |
 | 6 | Análisis de datos históricos | `gemelo-digital/` o notebooks (a definir) |
 | 7 | Token en el WebSocket + nueva contraseña del AP — probado en el robot (27/10). Falta probar modo AP+STA | `esp32_balancing_robot/` + `secrets.h` — ver [protocolo](protocolo-websocket.md) |
 
