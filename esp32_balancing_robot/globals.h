@@ -100,20 +100,11 @@ extern uint8_t mode;                 // 0 = Normal, 1 = Pro
 // ============================================================================
 extern float   ws_throttle;          // -1.0 to 1.0 from joystick Y axis
 extern float   ws_steering;          // -1.0 to 1.0 from joystick X axis
-extern bool    ws_servo_on;
 extern bool    ws_led_on;
 extern bool    ws_pro_mode;
 extern bool    ws_calibrate_request;
 extern bool    ws_new_pid;           // Flag: new PID values received
 extern bool    ws_connected;         // At least one authenticated WebSocket client
-
-// ============================================================================
-// AUTO RAISE-UP STATE
-// ============================================================================
-extern bool    autoRaiseup_done;       // Already completed (or disabled)
-extern bool    autoRaiseup_active;     // Currently attempting to raise
-extern uint8_t autoRaiseup_attempts;   // Number of attempts made
-extern unsigned long autoRaiseup_timer;
 
 // ============================================================================
 // TELEMETRY (sent to web client)

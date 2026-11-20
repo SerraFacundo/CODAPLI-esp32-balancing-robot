@@ -39,7 +39,6 @@
  * - 2x NEMA17 stepper motors
  * - 2x A4988 stepper drivers (1/8 microstepping)
  * - MPU6050 IMU (I2C)
- * - MG-90S servo
  * - 2x 18650 Li-ion batteries (7.2V)
  */
 
@@ -88,6 +87,20 @@ const unsigned long TELEMETRY_INTERVAL_MS = 100;  // 10Hz telemetry updates
 bool motorsActive = false;
 
 // ============================================================================
+// EXTENDED TELEMETRY STATE (plataforma IIoT)
+// ============================================================================
+// Una "caída" es la transición motores activos -> inactivos (el robot pasó el
+// ángulo límite). También cuenta si alguien lo acuesta a mano.
+unsigned long lastStatusMs = 0;
+uint32_t fallCount = 0;              // Caídas desde el arranque
+unsigned long uprightSinceMs = 0;    // Inicio del tramo actual de pie
+unsigned long uprightMsTotal = 0;    // Tiempo de pie acumulado (tramos cerrados)
+bool fallPending = false;            // Evento "F:" por enviar (se manda fuera del control)
+float fallAngle = 0;                 // Ángulo al detectar la caída
+unsigned long fallRunMs = 0;         // Duración del tramo de pie que terminó en caída
+float batteryMvFiltered = -1;        // -1 = sin medición
+
+// ============================================================================
 // FORWARD DECLARATIONS
 // ============================================================================
 void initMPU6050();
@@ -96,15 +109,14 @@ void onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
 void processWebSocketMessage(uint8_t *data, size_t len);
 void handleAuthMessage(AsyncWebSocketClient *client, const char *msg);
 void closeStaleWsClients();
+int  sendToAuthedClients(const char *msg);
 void sendTelemetry();
+void sendStatus();
+void sendFallEvent();
+void updateBattery();
 void processControl();
 void setupWiFi();
 void setupWebServer();
-void handleAutoRaiseup();
-
-// Auto raise-up state machine
-enum RaiseupState { RAISEUP_WAIT, RAISEUP_PUSH, RAISEUP_RETRACT, RAISEUP_DONE };
-RaiseupState raiseupState = RAISEUP_WAIT;
 
 // ============================================================================
 // MORSE CODE PLAYER — Non-blocking "UTN"
@@ -149,7 +161,6 @@ void setup() {
   pinMode(PIN_MOTOR1_STEP, OUTPUT);
   pinMode(PIN_MOTOR2_DIR, OUTPUT);
   pinMode(PIN_MOTOR2_STEP, OUTPUT);
-  pinMode(PIN_SERVO, OUTPUT);
 
   pinMode(PIN_LED, OUTPUT);
   digitalWrite(PIN_LED, LOW);
@@ -159,20 +170,6 @@ void setup() {
 
   pinMode(PIN_BUZZER, OUTPUT);
   digitalWrite(PIN_BUZZER, LOW);
-
-  // --- Servo Setup (LEDC PWM) ---
-#ifdef ESP32_CORE_V3
-  ledcAttach(PIN_SERVO, 50, 16);   // 50Hz, 16-bit resolution
-#else
-  ledcSetup(6, 50, 16);            // Channel 6, 50Hz, 16-bit
-  ledcAttachPin(PIN_SERVO, 6);
-#endif
-  delay(50);
-#ifdef ESP32_CORE_V3
-  ledcWrite(PIN_SERVO, SERVO_AUX_NEUTRO);
-#else
-  ledcWrite(6, SERVO_AUX_NEUTRO);
-#endif
 
   // --- I2C & IMU Setup ---
   Wire.begin();
@@ -195,26 +192,11 @@ void setup() {
   for (uint8_t k = 0; k < 5; k++) {
     setMotorSpeedM1(5);
     setMotorSpeedM2(5);
-#ifdef ESP32_CORE_V3
-    ledcWrite(PIN_SERVO, SERVO_AUX_NEUTRO + 250);
-#else
-    ledcWrite(6, SERVO_AUX_NEUTRO + 250);
-#endif
     delay(200);
     setMotorSpeedM1(-5);
     setMotorSpeedM2(-5);
-#ifdef ESP32_CORE_V3
-    ledcWrite(PIN_SERVO, SERVO_AUX_NEUTRO - 250);
-#else
-    ledcWrite(6, SERVO_AUX_NEUTRO - 250);
-#endif
     delay(200);
   }
-#ifdef ESP32_CORE_V3
-  ledcWrite(PIN_SERVO, SERVO_AUX_NEUTRO);
-#else
-  ledcWrite(6, SERVO_AUX_NEUTRO);
-#endif
 
   // --- Ready ---
   Serial.println("========================================");
@@ -233,9 +215,6 @@ void setup() {
   digitalWrite(PIN_BUZZER, HIGH);
   delay(100);
   digitalWrite(PIN_BUZZER, LOW);
-
-  // Initialize auto raise-up timer
-  autoRaiseup_timer = millis();
 
   // Initialize timer for dt calculation
   timer_old = micros();
@@ -372,20 +351,26 @@ void loop() {
     motor2 = constrain(motor2, -MAX_CONTROL_OUTPUT, MAX_CONTROL_OUTPUT);
 
     // ==== CHECK IF ROBOT IS UPRIGHT ====
-    int angle_ready;
-    if (ws_servo_on)
-      angle_ready = 82;  // Wider threshold when servo arm is out (shifts center of gravity)
-    else
-      angle_ready = 74;
+    const int angle_ready = 74;
 
     if ((angle_adjusted < angle_ready) && (angle_adjusted > -angle_ready)) {
       // ---- ROBOT IS UPRIGHT: Enable motors and run ----
+      if (!motorsActive) uprightSinceMs = millis();  // Empieza un tramo de pie
       motorsActive = true;
       digitalWrite(PIN_ENABLE_MOTORS, LOW);  // Enable motors (active LOW)
       setMotorSpeedM1(motor1);
       setMotorSpeedM2(motor2);
     } else {
       // ---- ROBOT HAS FALLEN: Disable motors and reset ----
+      if (motorsActive) {
+        // Transición de pie -> caído: registrar la caída (el envío se hace
+        // en la sección de telemetría, no dentro del lazo de control)
+        fallRunMs = millis() - uprightSinceMs;
+        uprightMsTotal += fallRunMs;
+        fallCount++;
+        fallAngle = angle_adjusted;
+        fallPending = true;
+      }
       motorsActive = false;
       digitalWrite(PIN_ENABLE_MOTORS, HIGH);  // Disable motors
       setMotorSpeedM1(0);
@@ -407,28 +392,6 @@ void loop() {
       positionControlMode = false;
       throttle = 0;
       steering = 0;
-    }
-
-    // ==== SERVO CONTROL (skip during auto raise-up) ====
-    if (autoRaiseup_done) {
-      if (ws_servo_on) {
-        if (angle_adjusted > -40)
-#ifdef ESP32_CORE_V3
-          ledcWrite(PIN_SERVO, SERVO_MAX_PULSEWIDTH);
-        else
-          ledcWrite(PIN_SERVO, SERVO_MIN_PULSEWIDTH);
-#else
-          ledcWrite(6, SERVO_MAX_PULSEWIDTH);
-        else
-          ledcWrite(6, SERVO_MIN_PULSEWIDTH);
-#endif
-      } else {
-#ifdef ESP32_CORE_V3
-        ledcWrite(PIN_SERVO, SERVO_AUX_NEUTRO);
-#else
-        ledcWrite(6, SERVO_AUX_NEUTRO);
-#endif
-      }
     }
 
     // ==== LED CONTROL ====
@@ -458,13 +421,6 @@ void loop() {
   }  // end if (MPU6050_newData())
 
   // ========================================================================
-  // AUTO RAISE-UP — Attempt to stand up after boot
-  // ========================================================================
-  if (!autoRaiseup_done) {
-    handleAutoRaiseup();
-  }
-
-  // ========================================================================
   // MORSE CODE PLAYER — Non-blocking tick
   // ========================================================================
   if (morseActive) {
@@ -479,6 +435,19 @@ void loop() {
     lastTelemetryMs = now;
     closeStaleWsClients();
     sendTelemetry();
+  }
+
+  // Evento de caída: se envía apenas ocurre (fuera del lazo de control)
+  if (fallPending) {
+    fallPending = false;
+    sendFallEvent();
+  }
+
+  // Estado para la plataforma IIoT: 1 Hz
+  if (now - lastStatusMs >= STATUS_INTERVAL_MS) {
+    lastStatusMs = now;
+    updateBattery();
+    sendStatus();
   }
 }
 
@@ -706,7 +675,6 @@ void closeStaleWsClients() {
 //   M:<0|1>                   Mode
 //   P:<kp>:<kd>:<kpt>:<kit>   PID parameters
 //   C                         Calibrate
-//   S:<0|1>                   Servo
 //   L:<0|1>                   LED
 //   B                         Buzzer
 void processWebSocketMessage(uint8_t *data, size_t len) {
@@ -753,15 +721,6 @@ void processWebSocketMessage(uint8_t *data, size_t len) {
       Serial.println("Calibration requested from web");
       break;
 
-    case 'S': {
-      // Servo: S:<0|1>
-      int v = 0;
-      if (sscanf(msg, "S:%d", &v) == 1) {
-        ws_servo_on = (v == 1);
-      }
-      break;
-    }
-
     case 'L': {
       // LED: L:<0|1>
       int v = 0;
@@ -796,10 +755,10 @@ void processWebSocketMessage(uint8_t *data, size_t len) {
 }
 
 // ============================================================================
-// SEND TELEMETRY TO AUTHENTICATED WEBSOCKET CLIENTS
+// SEND TO AUTHENTICATED WEBSOCKET CLIENTS
 // ============================================================================
-// Format: A:<angle>:<speed>:<motors_active>
-void sendTelemetry() {
+// Devuelve a cuántos clientes se envió.
+int sendToAuthedClients(const char *msg) {
   uint32_t ids[WS_MAX_CLIENTS];
   int n = 0;
   portENTER_CRITICAL(&wsMux);
@@ -807,125 +766,66 @@ void sendTelemetry() {
     if (wsSessions[i].id != 0 && wsSessions[i].authed) ids[n++] = wsSessions[i].id;
   }
   portEXIT_CRITICAL(&wsMux);
-  if (n == 0) return;  // No authenticated clients
+  for (int i = 0; i < n; i++) ws.text(ids[i], msg);
+  return n;
+}
 
+// Telemetría rápida (10 Hz). Formato: A:<angle>:<speed>:<motors_active>
+void sendTelemetry() {
   char buf[64];
   snprintf(buf, sizeof(buf), "A:%.1f:%d:%d",
            angle_adjusted,
            actual_robot_speed,
            motorsActive ? 1 : 0);
-
-  for (int i = 0; i < n; i++) ws.text(ids[i], buf);
+  sendToAuthedClients(buf);
 }
 
-// ============================================================================
-// AUTO RAISE-UP — Non-blocking state machine
-// ============================================================================
-// After boot, the robot is lying flat. This function uses the servo arm to
-// push itself upright. The sequence:
-//   1. WAIT: Delay after boot to let things settle
-//   2. PUSH: Swing servo arm to push robot toward upright
-//   3. RETRACT: Pull servo back and check if balance caught
-//   4. DONE: Either balanced or gave up after max retries
-//
-// The servo arm acts as a lever against the ground. The direction of push
-// depends on which side the robot is lying on (positive or negative angle).
-void handleAutoRaiseup() {
+// Estado (1 Hz). Formato:
+//   E:<uptime_s>:<caidas>:<tiempo_de_pie_s>:<bateria_mV>:<rssi_dBm>:<heap_libre>:<clientes>
+// - tiempo_de_pie_s: acumulado desde el arranque, incluye el tramo actual
+// - bateria_mV: -1 si no hay divisor (BATTERY_ADC_PIN = -1)
+// - rssi_dBm: señal de la conexión STA a la red de la laptop; 0 si no está conectada
+void sendStatus() {
   unsigned long now = millis();
-
-  switch (raiseupState) {
-
-    case RAISEUP_WAIT:
-      // Wait for the delay after boot
-      if (now - autoRaiseup_timer >= AUTO_RAISEUP_DELAY_MS) {
-        // Check if robot is already upright (held by user)
-        if (fabs(angle_adjusted) < 40) {
-          Serial.println("Auto raise-up: Robot already upright, skipping.");
-          autoRaiseup_done = true;
-          raiseupState = RAISEUP_DONE;
-          return;
-        }
-
-        if (autoRaiseup_attempts >= AUTO_RAISEUP_RETRIES) {
-          Serial.println("Auto raise-up: Max retries reached. Stand it up manually.");
-          autoRaiseup_done = true;
-          raiseupState = RAISEUP_DONE;
-          // Triple beep to signal failure
-          for (int i = 0; i < 3; i++) {
-            digitalWrite(PIN_BUZZER, HIGH); delay(200);
-            digitalWrite(PIN_BUZZER, LOW);  delay(100);
-          }
-          return;
-        }
-
-        // Start a push attempt
-        autoRaiseup_attempts++;
-        Serial.printf("Auto raise-up: Attempt %d/%d (angle=%.1f)\n",
-                       autoRaiseup_attempts, AUTO_RAISEUP_RETRIES, angle_adjusted);
-
-        // Push servo in the direction that lifts the robot
-        // If angle > 0 (leaning forward), push with max pulse
-        // If angle < 0 (leaning backward), push with min pulse
-        if (angle_adjusted > 0) {
-#ifdef ESP32_CORE_V3
-          ledcWrite(PIN_SERVO, SERVO_MAX_PULSEWIDTH);
-#else
-          ledcWrite(6, SERVO_MAX_PULSEWIDTH);
-#endif
-        } else {
-#ifdef ESP32_CORE_V3
-          ledcWrite(PIN_SERVO, SERVO_MIN_PULSEWIDTH);
-#else
-          ledcWrite(6, SERVO_MIN_PULSEWIDTH);
-#endif
-        }
-
-        autoRaiseup_timer = now;
-        raiseupState = RAISEUP_PUSH;
-      }
-      break;
-
-    case RAISEUP_PUSH:
-      // Wait for the push duration
-      if (now - autoRaiseup_timer >= AUTO_RAISEUP_PUSH_MS) {
-        // Retract servo back to neutral
-#ifdef ESP32_CORE_V3
-        ledcWrite(PIN_SERVO, SERVO_AUX_NEUTRO);
-#else
-        ledcWrite(6, SERVO_AUX_NEUTRO);
-#endif
-        autoRaiseup_timer = now;
-        raiseupState = RAISEUP_RETRACT;
-      }
-      break;
-
-    case RAISEUP_RETRACT:
-      // Give the robot 1 second to stabilize after the push
-      if (now - autoRaiseup_timer >= 1000) {
-        if (fabs(angle_adjusted) < 60) {
-          // Success! The balance controller should be catching it now
-          Serial.println("Auto raise-up: SUCCESS! Robot is balancing.");
-          autoRaiseup_done = true;
-          raiseupState = RAISEUP_DONE;
-          // Victory beep
-          digitalWrite(PIN_BUZZER, HIGH); delay(50);
-          digitalWrite(PIN_BUZZER, LOW);  delay(30);
-          digitalWrite(PIN_BUZZER, HIGH); delay(50);
-          digitalWrite(PIN_BUZZER, LOW);
-        } else {
-          // Didn't make it — try again
-          Serial.printf("Auto raise-up: Attempt %d failed (angle=%.1f), retrying...\n",
-                         autoRaiseup_attempts, angle_adjusted);
-          autoRaiseup_timer = now;
-          raiseupState = RAISEUP_WAIT;  // Go back to wait (will check retries)
-        }
-      }
-      break;
-
-    case RAISEUP_DONE:
-      autoRaiseup_done = true;
-      break;
+  unsigned long uprightMs = uprightMsTotal + (motorsActive ? now - uprightSinceMs : 0);
+  int rssi = (WiFi.status() == WL_CONNECTED) ? WiFi.RSSI() : 0;
+  int clients = 0;
+  portENTER_CRITICAL(&wsMux);
+  for (int i = 0; i < WS_MAX_CLIENTS; i++) {
+    if (wsSessions[i].id != 0 && wsSessions[i].authed) clients++;
   }
+  portEXIT_CRITICAL(&wsMux);
+
+  char buf[96];
+  snprintf(buf, sizeof(buf), "E:%lu:%lu:%lu:%d:%d:%lu:%d",
+           now / 1000UL,
+           (unsigned long)fallCount,
+           uprightMs / 1000UL,
+           (int)batteryMvFiltered,
+           rssi,
+           (unsigned long)ESP.getFreeHeap(),
+           clients);
+  sendToAuthedClients(buf);
+}
+
+// Evento de caída. Formato: F:<numero_de_caida>:<angulo>:<duracion_tramo_de_pie_ms>
+// Si en ese momento no hay clientes se pierde el evento, pero el contador de
+// caídas del mensaje E: permite detectarlo igual.
+void sendFallEvent() {
+  char buf[64];
+  snprintf(buf, sizeof(buf), "F:%lu:%.1f:%lu",
+           (unsigned long)fallCount, fallAngle, fallRunMs);
+  sendToAuthedClients(buf);
+  Serial.printf("Caída #%lu (ángulo %.1f, de pie %.1f s)\n",
+                (unsigned long)fallCount, fallAngle, fallRunMs / 1000.0f);
+}
+
+// Lee la batería (si hay divisor configurado) con un filtro exponencial.
+void updateBattery() {
+#if BATTERY_ADC_PIN >= 0
+  float mv = analogReadMilliVolts(BATTERY_ADC_PIN) * BATTERY_DIVIDER * BATTERY_CALIBRATION;
+  batteryMvFiltered = (batteryMvFiltered < 0) ? mv : batteryMvFiltered * 0.8f + mv * 0.2f;
+#endif
 }
 
 // ============================================================================

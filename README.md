@@ -22,7 +22,6 @@ El robot se controla en tiempo real a través de una interfaz web embebida, acce
 | Motor paso a paso    | NEMA17                               | 2        |
 | Driver de motor      | A4988                                | 2        |
 | IMU                  | MPU-6050 (giroscopio + acelerómetro) | 1        |
-| Servo                | MG-90S                               | 1        |
 | Batería              | Li-ion 18650 3.7V                    | 2        |
 | Buzzer               | Activo                               | 1        |
 | LED                  | Alta luminosidad                     | 2        |
@@ -39,7 +38,6 @@ El robot se controla en tiempo real a través de una interfaz web embebida, acce
 | GPIO 27   | DIR motor 1                       |
 | GPIO 26   | STEP motor 2                      |
 | GPIO 25   | DIR motor 2                       |
-| GPIO 13   | Señal servo                       |
 | GPIO 21   | I2C SDA (MPU-6050)                |
 | GPIO 22   | I2C SCL (MPU-6050)                |
 | GPIO 32   | LED                               |
@@ -165,7 +163,7 @@ La interfaz está completamente embebida en el firmware (no requiere servidor ex
 - Soporte de gamepad USB (escritorio)
 - Telemetría en tiempo real: ángulo, velocidad, estado de motores
 - Ajuste de ganancias PID con sliders
-- Control de servo, LEDs y buzzer
+- Control de LEDs y buzzer
 - Modos Normal y Pro (diferentes límites de velocidad)
 - Calibración remota
 
@@ -177,7 +175,6 @@ La interfaz está completamente embebida en el firmware (no requiere servidor ex
 | `M:<0\|1>`                | Cambio de modo (Normal/Pro)      |
 | `P:<kp>:<kd>:<kpt>:<kit>` | Actualización de PID             |
 | `C`                       | Solicitud de calibración         |
-| `S:<0\|1>`                | Control de servo                 |
 | `L:<0\|1>`                | Control de LED                   |
 | `B`                       | Buzzer                           |
 | `W`                       | Código morse "UTN"               |

@@ -44,12 +44,13 @@ que ya conoce la contraseña de la red podría capturarlo. Decisión documentada
 | `M:<0\|1>` | Modo normal / pro |
 | `P:<kp>:<kd>:<kpt>:<kit>` | Ganancias PID (estabilidad PD + velocidad PI) |
 | `C` | Calibrar |
-| `S:<0\|1>` | Servo |
 | `L:<0\|1>` | LED |
 | `B` | Buzzer (doble beep) |
 | `W` | Morse "UTN" por buzzer |
 
-## Robot → clientes autenticados (telemetría, 10 Hz)
+## Robot → clientes autenticados
+
+### Telemetría rápida (10 Hz)
 
 ```
 A:<angulo>:<velocidad>:<motores_activos>
@@ -59,8 +60,31 @@ A:<angulo>:<velocidad>:<motores_activos>
 - `velocidad`: `actual_robot_speed` (entero, unidades internas del firmware).
 - `motores_activos`: `1` si los motores están habilitados, `0` si no.
 
-## Pendiente
+### Estado (1 Hz)
 
-- **Telemetría extendida para IIoT y gemelo digital**: batería, uptime, contador de caídas,
-  setpoint de ángulo, comando de motores. Mantener `A:` como está (lo usa la interfaz web)
-  y agregar un mensaje nuevo para los campos extra.
+```
+E:<uptime_s>:<caidas>:<de_pie_s>:<bateria_mV>:<rssi_dBm>:<heap_libre>:<clientes>
+```
+
+| Campo | Significado |
+|---|---|
+| `uptime_s` | Segundos desde el arranque (vuelve a 0 si el robot se reinicia) |
+| `caidas` | Caídas desde el arranque |
+| `de_pie_s` | Tiempo total de pie desde el arranque, incluido el tramo actual |
+| `bateria_mV` | Tensión de batería; `-1` si no hay divisor conectado (`BATTERY_ADC_PIN` en `defines.h`) |
+| `rssi_dBm` | Señal de la conexión STA a la red de la laptop; `0` si no está conectada |
+| `heap_libre` | Memoria libre del ESP32 en bytes (sirve para detectar fugas) |
+| `clientes` | Clientes WebSocket autenticados |
+
+### Evento de caída
+
+```
+F:<numero>:<angulo>:<tramo_ms>
+```
+
+Se envía apenas el robot pasa el ángulo límite y se apagan los motores. `tramo_ms` es cuánto
+tiempo estuvo de pie antes de esa caída (un "tiempo entre fallas" directo). Si en ese momento
+no hay nadie conectado, el evento se pierde, pero el contador `caidas` de `E:` lo refleja.
+También cuenta como caída acostar el robot a mano.
+
+La interfaz web solo usa `A:`; ignora `E:` y `F:`.

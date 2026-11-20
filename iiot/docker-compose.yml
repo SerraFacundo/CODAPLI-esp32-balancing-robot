@@ -22,6 +22,8 @@ services:
     ports:
       - "1880:1880"
     environment:
+      # Los flujos se leen y guardan en iiot/node-red/flows.json (versionado en git)
+      FLOWS: /data/proyecto/flows.json
       INFLUX_URL: http://influxdb:8086
       INFLUX_ORG: ${INFLUX_ORG}
       INFLUX_BUCKET: ${INFLUX_BUCKET}

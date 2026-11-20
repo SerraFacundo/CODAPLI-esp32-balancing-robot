@@ -1,7 +1,13 @@
 apiVersion: 1
 
+# Se borra y se vuelve a crear en cada arranque para que siempre tenga el uid fijo
+deleteDatasources:
+  - name: InfluxDB-Robot
+    orgId: 1
+
 datasources:
   - name: InfluxDB-Robot
+    uid: influxdb-robot   # fijo: el dashboard lo referencia por este uid
     type: influxdb
     access: proxy
     url: http://influxdb:8086

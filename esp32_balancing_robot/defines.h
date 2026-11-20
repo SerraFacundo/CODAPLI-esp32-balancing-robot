@@ -40,7 +40,6 @@
 #define PIN_MOTOR1_STEP   14        // Motor 1 step pulse (A4988 STEP pin)
 #define PIN_MOTOR2_DIR    25        // Motor 2 direction (A4988 DIR pin)
 #define PIN_MOTOR2_STEP   26        // Motor 2 step pulse (A4988 STEP pin)
-#define PIN_SERVO         13        // Servo MG-90S signal pin
 #define PIN_LED           32        // Bright LED(s)
 #define PIN_WIFI_LED       2        // Onboard LED (WiFi status indicator)
 #define PIN_BUZZER        33        // Active buzzer
@@ -113,28 +112,11 @@
                                     // Reduced from 0xFFFFFF to prevent potential overflow issues
 
 // ============================================================================
-// AUTO RAISE-UP CONFIGURATION
-// ============================================================================
-// After boot + calibration, the robot uses the servo arm to push itself upright.
-// It swings the servo to shift center of gravity, then motors catch the balance.
-#define AUTO_RAISEUP_ENABLED    true
-#define AUTO_RAISEUP_DELAY_MS   2000    // Wait time after boot before attempting (ms)
-#define AUTO_RAISEUP_PUSH_MS    600     // How long the servo pushes (ms)
-#define AUTO_RAISEUP_RETRIES    3       // Max attempts before giving up
-
-// ============================================================================
 // ANGLE OFFSET
 // ============================================================================
 // Compensates for robot's center of gravity not being perfectly centered.
 // Set to 0 initially, then use the web interface calibration to find the correct value.
 #define ANGLE_OFFSET 0.0
-
-// ============================================================================
-// SERVO DEFINITIONS
-// ============================================================================
-#define SERVO_AUX_NEUTRO       4444     // Servo neutral position (16-bit PWM duty cycle at 50Hz)
-#define SERVO_MIN_PULSEWIDTH   (SERVO_AUX_NEUTRO - 2700)
-#define SERVO_MAX_PULSEWIDTH   (SERVO_AUX_NEUTRO + 2700)
 
 // ============================================================================
 // WIFI AP CONFIGURATION
@@ -184,6 +166,21 @@
 #define SET(x,y) (x |= (1<<y))
 #define RAD2GRAD 57.2957795f
 #define GRAD2RAD 0.01745329251994329576923690768489f
+
+// ============================================================================
+// EXTENDED TELEMETRY (plataforma IIoT)
+// ============================================================================
+#define STATUS_INTERVAL_MS 1000     // Mensaje de estado "E:" cada 1 s
+
+// Medición de batería (opcional). El robot original NO tiene esta conexión:
+// requiere un divisor resistivo desde la batería (máx. 8.4 V) a un pin ADC1
+// (GPIO 32-39; los ADC2 no funcionan con WiFi activo). Sugerido:
+//   Batería+ --[100k]--+--[33k]-- GND   (punto medio a GPIO 34)
+//   8.4 V -> 2.08 V en el pin. Factor = (100k + 33k) / 33k = 4.03
+// Con BATTERY_ADC_PIN en -1 se informa batería = -1 (sin medición).
+#define BATTERY_ADC_PIN      -1     // Cambiar a 34 cuando esté el divisor
+#define BATTERY_DIVIDER      4.03f  // (R_arriba + R_abajo) / R_abajo
+#define BATTERY_CALIBRATION  1.00f  // Ajuste fino: V_multímetro / V_informado
 
 // ============================================================================
 // DEBUG CONFIGURATION
